@@ -24,6 +24,19 @@
         />
       </g>
 
+      <!-- Соединительные линии -->
+      <g v-if="connectPoints" class="grid-field__connections">
+        <line
+          v-for="(line, index) in connections"
+          :key="'connection' + index"
+          :x1="line.x1"
+          :y1="line.y1"
+          :x2="line.x2"
+          :y2="line.y2"
+          class="grid-field__connection"
+        />
+      </g>
+
       <!-- Точки -->
       <g class="grid-field__points">
         <circle
@@ -63,6 +76,10 @@ export default {
       type: Number,
       default: 50,
     },
+    connectPoints: {
+      type: Boolean,
+      default: true,
+    },
   },
   computed: {
     gridX() {
@@ -77,6 +94,15 @@ export default {
         (_, i) => i * this.gridSize
       );
     },
+    connections() {
+      if (this.points.length < 2) return [];
+      return this.points.slice(1).map((point, index) => ({
+        x1: this.points[index].x,
+        y1: this.height - this.points[index].y,
+        x2: point.x,
+        y2: this.height - point.y,
+      }));
+    },
   },
 };
 </script>
@@ -84,6 +110,7 @@ export default {
 <style lang="less">
 @grid-line-color: #e0e0e0;
 @point-stroke-color: #555;
+@connection-color: #007bff;
 @title-color: #333;
 @title-font-size: 24px;
 @container-padding: 20px;
@@ -118,6 +145,13 @@ export default {
     .grid-field__line {
       stroke: @grid-line-color;
       stroke-width: 1px;
+    }
+  }
+
+  &__connections {
+    .grid-field__connection {
+      stroke: @connection-color;
+      stroke-width: 2px;
     }
   }
 
