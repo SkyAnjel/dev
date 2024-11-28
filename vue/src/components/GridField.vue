@@ -1,55 +1,76 @@
 <template>
   <div class="grid-field">
     <h1 class="grid-field__title">SVG График</h1>
-    <svg :width="width" :height="height" class="grid-field__svg">
-      <!-- Сетка -->
-      <g class="grid-field__lines">
-        <line
-          v-for="x in gridX"
-          :key="'x' + x"
-          :x1="x"
-          :y1="0"
-          :x2="x"
-          :y2="height"
-          class="grid-field__line"
-        />
-        <line
-          v-for="y in gridY"
-          :key="'y' + y"
-          :x1="0"
-          :y1="y"
-          :x2="width"
-          :y2="y"
-          class="grid-field__line"
-        />
-      </g>
+    <div class="grid-field__container">
+      <svg :width="width" :height="height" class="grid-field__svg">
+        <!-- Сетка -->
+        <g class="grid-field__lines">
+          <line
+            v-for="x in gridX"
+            :key="'x' + x"
+            :x1="x"
+            :y1="0"
+            :x2="x"
+            :y2="height"
+            class="grid-field__line"
+          />
+          <line
+            v-for="y in gridY"
+            :key="'y' + y"
+            :x1="0"
+            :y1="y"
+            :x2="width"
+            :y2="y"
+            class="grid-field__line"
+          />
+        </g>
 
-      <!-- Соединительные линии -->
-      <g v-if="connectPoints" class="grid-field__connections">
-        <line
-          v-for="(line, index) in connections"
-          :key="'connection' + index"
-          :x1="line.x1"
-          :y1="line.y1"
-          :x2="line.x2"
-          :y2="line.y2"
-          class="grid-field__connection"
-        />
-      </g>
+        <!-- Наборы точек и соединительных линий -->
+        <g
+          v-for="(dataSet, dataSetIndex) in dataSets"
+          :key="'dataset' + dataSetIndex"
+          class="grid-field__dataset"
+        >
+          <!-- Соединительные линии -->
+          <g v-if="connectPoints" class="grid-field__connections">
+            <line
+              v-for="(line, index) in computeConnections(dataSet.points)"
+              :key="'connection' + dataSetIndex + '-' + index"
+              :x1="line.x1"
+              :y1="line.y1"
+              :x2="line.x2"
+              :y2="line.y2"
+              :stroke="dataSet.lineColor"
+              class="grid-field__connection"
+            />
+          </g>
 
-      <!-- Точки -->
-      <g class="grid-field__points">
-        <circle
-          v-for="(point, index) in points"
-          :key="'point' + index"
-          :cx="point.x"
-          :cy="height - point.y"
-          :r="radius"
-          :fill="point.color"
-          class="grid-field__point"
-        />
-      </g>
-    </svg>
+          <!-- Точки -->
+          <g class="grid-field__points">
+            <circle
+              v-for="(point, pointIndex) in dataSet.points"
+              :key="'point' + dataSetIndex + '-' + pointIndex"
+              :cx="point.x"
+              :cy="height - point.y"
+              :r="radius"
+              :fill="point.color"
+              class="grid-field__point"
+              @mouseenter="showTooltip(point, $event)"
+              @mouseleave="hideTooltip"
+            />
+          </g>
+        </g>
+      </svg>
+
+      <!-- Координатный тултип -->
+      <div
+        v-if="tooltip.visible"
+        class="grid-field__tooltip"
+        :style="{ top: `${tooltip.y}px`, left: `${tooltip.x}px` }"
+      >
+        {{ tooltip.text }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -64,7 +85,7 @@ export default {
       type: Number,
       required: true,
     },
-    points: {
+    dataSets: {
       type: Array,
       required: true,
     },
@@ -81,6 +102,16 @@ export default {
       default: true,
     },
   },
+  data() {
+    return {
+      tooltip: {
+        visible: false,
+        text: '',
+        x: 0,
+        y: 0,
+      },
+    };
+  },
   computed: {
     gridX() {
       return Array.from(
@@ -94,14 +125,27 @@ export default {
         (_, i) => i * this.gridSize
       );
     },
-    connections() {
-      if (this.points.length < 2) return [];
-      return this.points.slice(1).map((point, index) => ({
-        x1: this.points[index].x,
-        y1: this.height - this.points[index].y,
+  },
+  methods: {
+    computeConnections(points) {
+      if (points.length < 2) return [];
+      return points.slice(1).map((point, index) => ({
+        x1: points[index].x,
+        y1: this.height - points[index].y,
         x2: point.x,
         y2: this.height - point.y,
       }));
+    },
+    showTooltip(point, event) {
+      this.tooltip = {
+        visible: true,
+        text: `(${point.x}, ${point.y})`,
+        x: event.clientX + 10,
+        y: event.clientY - 10,
+      };
+    },
+    hideTooltip() {
+      this.tooltip.visible = false;
     },
   },
 };
@@ -110,14 +154,13 @@ export default {
 <style lang="less">
 @grid-line-color: #e0e0e0;
 @point-stroke-color: #555;
-@connection-color: #007bff;
-@title-color: #333;
-@title-font-size: 24px;
-@container-padding: 20px;
-@point-hover-color: #ff6347;
+@tooltip-bg-color: #333;
+@tooltip-text-color: #fff;
+@tooltip-padding: 6px;
+@tooltip-radius: 4px;
 
 .grid-field {
-  padding: @container-padding;
+  padding: 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -127,11 +170,15 @@ export default {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 
   &__title {
-    font-size: @title-font-size;
-    color: @title-color;
+    font-size: 24px;
+    color: #333;
     font-family: 'Arial', sans-serif;
     margin-bottom: 20px;
     text-align: center;
+  }
+
+  &__container {
+    position: relative;
   }
 
   &__svg {
@@ -150,7 +197,6 @@ export default {
 
   &__connections {
     .grid-field__connection {
-      stroke: @connection-color;
       stroke-width: 2px;
     }
   }
@@ -159,13 +205,25 @@ export default {
     .grid-field__point {
       stroke: @point-stroke-color;
       stroke-width: 2px;
-      transition: fill 0.3s, transform 0.3s;
+      transition: transform 0.2s;
+      pointer-events: all;
 
       &:hover {
-        fill: @point-hover-color;
-        transform: scale(1.2);
+        fill: darkorange;
       }
     }
+  }
+
+  &__tooltip {
+    position: absolute;
+    background-color: @tooltip-bg-color;
+    color: @tooltip-text-color;
+    padding: @tooltip-padding;
+    border-radius: @tooltip-radius;
+    white-space: nowrap;
+    font-size: 12px;
+    z-index: 10;
+    pointer-events: none;
   }
 }
 </style>
