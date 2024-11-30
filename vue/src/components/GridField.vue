@@ -1,13 +1,18 @@
 <template>
-  <div class="grid-field">
-    <h1 class="grid-field__title">SVG График</h1>
-    <div class="grid-field__container">
-      <svg :width="width" :height="height" class="grid-field__svg">
+    <div class="grid-field">
+        <h1 class="grid-field__title">SVG График</h1>
+    <div class="grid-field__container"></div>
+      <svg
+        :width="width"
+        :height="height"
+        class="grid-field__svg"
+        @mouseleave="hideTooltip"
+      >
         <!-- Сетка -->
         <g class="grid-field__lines">
           <line
-            v-for="x in gridX"
-            :key="'x' + x"
+            v-for="(x, index) in gridX"
+            :key="'x' + index"
             :x1="x"
             :y1="0"
             :x2="x"
@@ -15,8 +20,8 @@
             class="grid-field__line"
           />
           <line
-            v-for="y in gridY"
-            :key="'y' + y"
+            v-for="(y, index) in gridY"
+            :key="'y' + index"
             :x1="0"
             :y1="y"
             :x2="width"
@@ -24,205 +29,189 @@
             class="grid-field__line"
           />
         </g>
-
-        <!-- Наборы точек и соединительных линий -->
+  
+        <!-- Соединительные линии -->
+        <g class="grid-field__connections">
+          <line
+            v-for="(line, index) in connections"
+            :key="'line' + index"
+            :x1="line.x1"
+            :y1="line.y1"
+            :x2="line.x2"
+            :y2="line.y2"
+            :stroke="line.color"
+            class="grid-field__connection"
+          />
+        </g>
+  
+        <!-- Точки -->
         <g
-          v-for="(dataSet, dataSetIndex) in dataSets"
-          :key="'dataset' + dataSetIndex"
-          class="grid-field__dataset"
+          v-for="(dataSet, setIndex) in dataSets"
+          :key="'dataSet' + setIndex"
+          class="grid-field__points"
         >
-          <!-- Соединительные линии -->
-          <g v-if="connectPoints" class="grid-field__connections">
-            <line
-              v-for="(line, index) in computeConnections(dataSet.points)"
-              :key="'connection' + dataSetIndex + '-' + index"
-              :x1="line.x1"
-              :y1="line.y1"
-              :x2="line.x2"
-              :y2="line.y2"
-              :stroke="dataSet.lineColor"
-              class="grid-field__connection"
-            />
-          </g>
-
-          <!-- Точки -->
-          <g class="grid-field__points">
-            <circle
-              v-for="(point, pointIndex) in dataSet.points"
-              :key="'point' + dataSetIndex + '-' + pointIndex"
-              :cx="point.x"
-              :cy="height - point.y"
-              :r="radius"
-              :fill="point.color"
-              class="grid-field__point"
-              @mouseenter="showTooltip(point, $event)"
-              @mouseleave="hideTooltip"
-            />
-          </g>
+          <circle
+            v-for="(point, index) in dataSet.points"
+            :key="'point' + setIndex + '-' + index"
+            :cx="point.x"
+            :cy="height - point.y"
+            :r="radius"
+            :fill="point.color"
+            class="grid-field__point"
+            @mouseenter="(event) => showTooltip(point, event)"
+          />
         </g>
       </svg>
-
-      <!-- Координатный тултип -->
+  
+      <!-- Тултип -->
       <div
         v-if="tooltip.visible"
         class="grid-field__tooltip"
-        :style="{ top: `${tooltip.y}px`, left: `${tooltip.x}px` }"
+        :style="{ left: tooltip.x + 'px', top: tooltip.y + 'px' }"
       >
-        {{ tooltip.text }}
+        ({{ tooltip.point.x }}, {{ tooltip.point.y }})
       </div>
     </div>
-  </div>
-</template>
-
-<script>
-export default {
-  props: {
-    width: {
-      type: Number,
-      required: true,
-    },
-    height: {
-      type: Number,
-      required: true,
-    },
-    dataSets: {
-      type: Array,
-      required: true,
-    },
-    radius: {
-      type: Number,
-      required: true,
-    },
-    gridSize: {
-      type: Number,
-      default: 50,
-    },
-    connectPoints: {
-      type: Boolean,
-      default: true,
-    },
-  },
-  data() {
-    return {
-      tooltip: {
-        visible: false,
-        text: '',
-        x: 0,
-        y: 0,
+  </template>
+  
+  <script lang="ts">
+  import { defineComponent } from 'vue';
+  
+  interface Point {
+    x: number;
+    y: number;
+    color: string;
+  }
+  
+  interface DataSet {
+    points: Point[];
+    lineColor?: string;
+  }
+  
+  export default defineComponent({
+    name: 'GridField',
+    props: {
+      dataSets: {
+        type: Array as () => DataSet[],
+        required: true,
+        default: () => [],
       },
-    };
-  },
-  computed: {
-    gridX() {
-      return Array.from(
-        { length: Math.ceil(this.width / this.gridSize) },
-        (_, i) => i * this.gridSize
-      );
+      width: {
+        type: Number,
+        required: true,
+      },
+      height: {
+        type: Number,
+        required: true,
+      },
+      radius: {
+        type: Number,
+        required: true,
+      },
+      connectPoints: {
+        type: Boolean,
+        default: false,
+      },
     },
-    gridY() {
-      return Array.from(
-        { length: Math.ceil(this.height / this.gridSize) },
-        (_, i) => i * this.gridSize
-      );
+    computed: {
+      gridX() {
+        const gridSize = 50;
+        return Array.from(
+          { length: Math.ceil(this.width / gridSize) },
+          (_, i) => i * gridSize
+        );
+      },
+      gridY() {
+        const gridSize = 50;
+        return Array.from(
+          { length: Math.ceil(this.height / gridSize) },
+          (_, i) => i * gridSize
+        );
+      },
+      connections() {
+        if (!this.connectPoints || !this.dataSets.length) return [];
+        // Вычисляем линии для всех наборов данных
+        return this.dataSets.flatMap((dataSet) => {
+          if (!dataSet.points || dataSet.points.length < 2) return [];
+          return this.computeConnections(dataSet.points, dataSet.lineColor);
+        });
+      },
     },
-  },
-  methods: {
-    computeConnections(points) {
-      if (points.length < 2) return [];
-      return points.slice(1).map((point, index) => ({
-        x1: points[index].x,
-        y1: this.height - points[index].y,
-        x2: point.x,
-        y2: this.height - point.y,
-      }));
+    methods: {
+      computeConnections(points: Point[], color: string | undefined) {
+        if (!Array.isArray(points) || points.length < 2) return [];
+        return points.slice(0, -1).map((point, index) => ({
+          x1: point.x,
+          y1: this.height - point.y,
+          x2: points[index + 1].x,
+          y2: this.height - points[index + 1].y,
+          color: color || '#000',
+        }));
+      },
+      showTooltip(point: Point, event: MouseEvent) {
+        this.tooltip = {
+          visible: true,
+          point,
+          x: event.clientX + 10,
+          y: event.clientY - 20,
+        };
+      },
+      hideTooltip() {
+        this.tooltip.visible = false;
+      },
     },
-    showTooltip(point, event) {
-      this.tooltip = {
-        visible: true,
-        text: `(${point.x}, ${point.y})`,
-        x: event.clientX + 10,
-        y: event.clientY - 10,
+    data() {
+      return {
+        tooltip: {
+          visible: false,
+          point: { x: 0, y: 0, color: '' },
+          x: 0,
+          y: 0,
+        },
       };
     },
-    hideTooltip() {
-      this.tooltip.visible = false;
-    },
-  },
-};
-</script>
-
-<style lang="less">
-@grid-line-color: #e0e0e0;
-@point-stroke-color: #555;
-@tooltip-bg-color: #333;
-@tooltip-text-color: #fff;
-@tooltip-padding: 6px;
-@tooltip-radius: 4px;
-
-.grid-field {
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  background-color: #fafafa;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-
-  &__title {
-    font-size: 24px;
-    color: #333;
-    font-family: 'Arial', sans-serif;
-    margin-bottom: 20px;
-    text-align: center;
-  }
-
-  &__container {
+  });
+  </script>
+  
+  <style lang="less">
+  .grid-field {
     position: relative;
-  }
-
-  &__svg {
-    background-color: white;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-  }
-
-  &__lines {
-    .grid-field__line {
-      stroke: @grid-line-color;
-      stroke-width: 1px;
+  
+    &__svg {
+      border: 1px solid #ccc;
+    }
+  
+    &__lines {
+      .grid-field__line {
+      stroke: #e0e0e0;
+      stroke-width: 1;
     }
   }
 
   &__connections {
     .grid-field__connection {
-      stroke-width: 2px;
+      stroke-width: 2;
     }
   }
 
   &__points {
     .grid-field__point {
-      stroke: @point-stroke-color;
-      stroke-width: 2px;
-      transition: transform 0.2s;
-      pointer-events: all;
+      cursor: pointer;
+      transition: transform 0.2s ease-in-out;
+    }
 
-      &:hover {
-        fill: darkorange;
-      }
+    .grid-field__point:hover {
+      transform: scale(1.2);
     }
   }
 
   &__tooltip {
     position: absolute;
-    background-color: @tooltip-bg-color;
-    color: @tooltip-text-color;
-    padding: @tooltip-padding;
-    border-radius: @tooltip-radius;
-    white-space: nowrap;
+    background-color: #333;
+    color: #fff;
+    padding: 5px 10px;
+    border-radius: 4px;
     font-size: 12px;
-    z-index: 10;
     pointer-events: none;
   }
 }
